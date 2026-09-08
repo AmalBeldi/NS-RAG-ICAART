@@ -54,7 +54,24 @@ actually verified in this repository):
 python -m unittest discover -s tests -v
 ```
 
-## 3. Preparing instances
+## 3. Synthetic-data pilot (no data access needed)
+
+While MIMIC-III/i2b2 credentialing is pending, `notebooks/synthetic_pilot_colab.ipynb`
+runs the real pipeline end-to-end on fully synthetic patients generated
+by [Synthea](https://github.com/synthetichealth/synthea) -- no DUA, no
+credentialing, free GPU via Google Colab. Open the notebook in Colab
+(File -> Upload notebook, or push this repo to GitHub and open via
+`colab.research.google.com/github/<you>/<repo>/blob/main/notebooks/synthetic_pilot_colab.ipynb`),
+set Runtime -> GPU, and Run All.
+
+This produces real (not fabricated) numbers on synthetic data -- useful
+for validating the pipeline at scale with a real generation backbone,
+but **not a substitute for the paper's reported MIMIC-III/i2b2
+results**. If you include any of these numbers in the paper, label
+them explicitly as a synthetic-data pilot/robustness check, separate
+from the main results tables.
+
+## 4. Preparing instances (for the real MIMIC-III/i2b2 run)
 
 The paper's protocol (Section 5.2) defines the *tasks* (clinical QA,
 clinical summarization) but not a fixed public question set for QA --
@@ -75,7 +92,7 @@ assertions your annotation protocol produces (Section 5.7,
 "Independent Reference Construction" -- reference assertions must NOT
 be derived from NS-RAG's own output).
 
-## 4. Running the experiments
+## 5. Running the experiments
 
 ```bash
 bash scripts/run_all.sh
@@ -108,7 +125,7 @@ python -m nsrag.scripts.results_to_paper --results-dir results
 Paste the printed rows directly into the corresponding `tabular` block
 in `main.tex`.
 
-## 5. Package layout
+## 6. Package layout
 
 ```
 src/nsrag/
@@ -141,7 +158,7 @@ sample_data/                example JSONL instances + a tiny i2b2 doc, for smoke
 scripts/run_all.sh          orchestrates all six experiments
 ```
 
-## 6. Known limitations / where to focus review effort
+## 7. Known limitations / where to focus review effort
 
 - **Assertion matching (Fact P/R/F1) and the verifier are
   lexical-overlap baselines**, documented as such in their docstrings.
