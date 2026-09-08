@@ -8,6 +8,7 @@ dist/
 # Local results and credentialed data -- never commit these
 results/*.json
 *.csv
+!sample_data/**/*.csv
 mimic-iii/
 i2b2-2010/
 
