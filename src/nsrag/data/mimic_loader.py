@@ -40,7 +40,15 @@ class MimicLoader:
                 "(credentialed access required) and point `mimic_dir` at "
                 "the directory containing the raw CSVs."
             )
-        return pd.read_csv(path, low_memory=False)
+        df = pd.read_csv(path, low_memory=False)
+        # Column-name casing has varied across MIMIC-III distributions
+        # (the credentialed release uses UPPERCASE headers, e.g.
+        # SUBJECT_ID; the openly-accessible MIMIC-III Demo uses
+        # lowercase headers, e.g. subject_id). Normalize to uppercase
+        # once here so the rest of this class can rely on a single
+        # convention regardless of which release produced the file.
+        df.columns = [c.upper() for c in df.columns]
+        return df
 
     def load_notes(self, patient_id: str, note_type: str = "Discharge summary") -> list[ClinicalNote]:
         df = self._read("NOTEEVENTS.csv")
