@@ -148,3 +148,45 @@ class TestRetrieval(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class TestOpenWorldVerification(unittest.TestCase):
+    def setUp(self):
+        from nsrag.schema import Triple
+        from nsrag.verification.verifier import GraphVerifier
+        self.v = GraphVerifier()
+        self.ev = [Triple("Patient", "has_condition", "type 2 diabetes mellitus"),
+                   Triple("Patient", "takes_medication", "metformin 500 mg"),
+                   Triple("Patient", "has_condition", "hypertension")]
+
+    def _state(self, text, ev=None):
+        from nsrag.schema import Assertion
+        return self.v.verify(Assertion(id="x", text=text), ev or self.ev).state.value
+
+    def test_absent_medication_is_unknown(self):
+        self.assertEqual(self._state("patient takes insulin glargine"), "UNKNOWN")
+
+    def test_absent_condition_is_unknown(self):
+        self.assertEqual(self._state("patient has asthma"), "UNKNOWN")
+
+    def test_negation_still_contradicts(self):
+        self.assertEqual(self._state("patient has no hypertension"), "CONTRADICTED")
+
+    def test_supported(self):
+        self.assertEqual(self._state("patient takes metformin 500 mg"), "SUPPORTED")
+
+    def test_functional_lab_conflict_still_contradicted(self):
+        from nsrag.schema import Triple
+        ev = [Triple("Patient", "lab_HbA1c", "8.2 percent")]
+        self.assertEqual(self._state("patient lab HbA1c 6.0 percent", ev), "CONTRADICTED")
+
+    def test_lab_value_mismatch_not_supported(self):
+        from nsrag.schema import Triple
+        ev = [Triple("Patient", "lab_creatinine", "1.1 mg/dl")]
+        self.assertEqual(self._state("patient lab creatinine 2.4 mg/dl", ev), "CONTRADICTED")
+
+    def test_absent_analyte_is_unknown(self):
+        from nsrag.schema import Triple
+        ev = [Triple("Patient", "lab_HbA1c", "8.2 percent")]
+        self.assertEqual(self._state("patient lab sodium 140 mmol/l", ev), "UNKNOWN")
