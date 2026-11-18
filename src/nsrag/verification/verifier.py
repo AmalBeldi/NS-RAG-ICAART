@@ -41,6 +41,13 @@ def _tokenize(text: str) -> set[str]:
     return {w.lower() for w in _WORD_RE.findall(text)} - _STOPWORDS
 
 
+def _numbers(text: str) -> set[str]:
+    """Numeric tokens (digits only). A support match is rejected when both
+    sides carry numbers and the numbers differ (e.g. HbA1c 8.2 vs 6.0):
+    shared unit/analyte tokens must not mask a value mismatch."""
+    return {w for w in _WORD_RE.findall(text) if w.isdigit()}
+
+
 def _is_negated(text: str) -> bool:
     tokens = _tokenize(text)
     return bool(tokens & _NEGATION_CUES)
@@ -50,6 +57,12 @@ def _is_negated(text: str) -> bool:
 class VerifierConfig:
     support_threshold: float = 0.5    # min Jaccard overlap to count as a match
     contradiction_margin: float = 0.3  # min overlap on subject/predicate to flag a conflict
+    # Open-world assumption: absence of evidence => UNKNOWN. The
+    # same-predicate/different-object contradiction rule is only valid for
+    # *functional* predicates (one value at a time, e.g. a lab result).
+    # For multi-valued predicates (has_condition, takes_medication) a
+    # different object is NOT a conflict. Predicates are matched by prefix.
+    functional_predicate_prefixes: tuple = ("lab_",)
 
 
 class GraphVerifier:
@@ -83,7 +96,9 @@ class GraphVerifier:
                 assertion.witness_subgraph = [best_triple]
                 return assertion
 
-        if scored and scored[0][1] >= self.config.support_threshold:
+        a_nums = _numbers(assertion.text)
+        if scored and scored[0][1] >= self.config.support_threshold and not (
+                a_nums and _numbers(scored[0][0].as_text()) and a_nums != _numbers(scored[0][0].as_text())):
             best_score = scored[0][1]
             assertion.state = VerificationState.SUPPORTED
             assertion.confidence = round(best_score, 3)
@@ -97,13 +112,15 @@ class GraphVerifier:
         # signal.
         assertion_terms = _tokenize(assertion.text)
         for triple, score in scored:
+            if not triple.pred.lower().startswith(self.config.functional_predicate_prefixes):
+                continue  # multi-valued predicate: different object != contradiction
             pred_terms = _tokenize(triple.pred.replace("_", " "))
             if not pred_terms:
                 continue
             pred_overlap = len(pred_terms & assertion_terms) / len(pred_terms)
-            if pred_overlap >= self.config.contradiction_margin:
+            if pred_overlap >= 1.0:  # functional: the analyte itself must be named
                 obj_terms = _tokenize(triple.obj)
-                if not (obj_terms & assertion_terms):
+                if not (obj_terms <= assertion_terms):  # functional: whole value must match
                     assertion.state = VerificationState.CONTRADICTED
                     assertion.confidence = round(score, 3)
                     assertion.witness_subgraph = [triple]
